@@ -410,9 +410,9 @@ class APP(ctk.CTk):
         for c in self.filtered_df:
             if c != self.x_axis.get():
                 if self.parameter_selections[c].get():
-                    self.current_y_values[c].set(f'{self.filtered_df[c].iloc[minvalue_index]}')
+                    self.current_y_values[c].set(round(self.filtered_df[c].iloc[minvalue_index], 3))
             else:
-                self.current_y_values[self.x_axis.get()].set(self.filtered_df[self.x_axis.get()].iloc[minvalue_index])
+                self.current_y_values[self.x_axis.get()].set(round(self.filtered_df[self.x_axis.get()].iloc[minvalue_index], 3))
         try:
             self.clicked_hline.remove()
         except AttributeError:

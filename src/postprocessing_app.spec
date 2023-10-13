@@ -5,7 +5,7 @@ block_cipher = None
 
 
 a = Analysis(
-    ['src\\postprocessing_app.py'],
+    ['postprocessing_app.py'],
     pathex=[],
     binaries=[],
     datas=[('C:\\Users\\mgundersen\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\customtkinter', 'customtkinter')],
