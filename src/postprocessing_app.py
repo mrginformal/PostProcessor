@@ -118,7 +118,7 @@ class APP(ctk.CTk):
         self.output_list =  []
         self.cycle_list =  []
         self.parameter_selections =  {}
-        self.crosshair_state = ctk.IntVar(value=1)
+        self.crosshair_state = ctk.IntVar(value=0)
         self.double_import = ctk.IntVar(value=0)
         self.text_filepath1 =  ctk.StringVar(value='File(s): ')
         self.text_filepath2 =  ctk.StringVar()
@@ -285,7 +285,7 @@ class APP(ctk.CTk):
                 Ydata_df['M_ID'] = Ydata_df['Yeti_ID'].map(associations)
                 self.full_df = Mdata_df.merge(Ydata_df, on=['M_ID', 'packet_num'], how='inner', copy=False)
 
-                drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object') and (c not in ['yeti_ID', 'channel', 'cycle'])]
+                drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object') and (c not in ['Yeti_ID', 'channel', 'cycle'])]
                 
             else: # if you dont want to merge, and you already have a good df, either from serial logger, previous merge, etc.
                 filename1 = tk.filedialog.askopenfilename(initialdir = "/",
@@ -305,7 +305,8 @@ class APP(ctk.CTk):
 
                     self.full_df = reduce(lambda left, right: pd.merge(left, right, on='timestamp'), filtered_dfs)
 
-            drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object')] #if the colum has mixed datatypes, we drop it, gets ride of weird columns in serial logger data
+                drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object')] #if the colum has mixed datatypes, we drop it, gets ride of weird columns in serial logger data
+
             self.disabled_button = None
             self.x_axis.set('')
 
@@ -356,7 +357,7 @@ class APP(ctk.CTk):
                 self.update_graph(filtered_df)
             else:
                 self.filtered_df = self.full_df
-                self.update_graph(self.full_df)
+                self.update_graph(self.filtered_df)
             
         except SyntaxError as err:
             print(err)
@@ -364,7 +365,7 @@ class APP(ctk.CTk):
 
     def update_graph(self, dataset):
         # updates graph plots from data(remakes plots and draws)
-
+        print('updating data')
         try:
             count = 1
             df = dataset.sort_values(self.x_axis.get(), ignore_index=True)
@@ -384,7 +385,6 @@ class APP(ctk.CTk):
 
             # Replot new selected plots, and remake summary labels
             for c in df:
-                print(c)
                 if self.parameter_selections[c].get():
                     lines = self.ax1.plot(df[self.x_axis.get()], df[c], label=c, linewidth=1) #plot the line
                     self.current_y_values[c] = ctk.StringVar(value=c)
