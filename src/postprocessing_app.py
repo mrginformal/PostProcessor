@@ -86,7 +86,7 @@ class APP(ctk.CTk):
         super().__init__()
 
         # configure application window
-        self.title('PostProcessing Tool')
+        self.title('V1.0.0')
         scrn_w = self.winfo_screenwidth() - 100
         scrn_h = self.winfo_screenheight() - 100
         self.config(background='black')
@@ -366,9 +366,9 @@ class APP(ctk.CTk):
     def update_graph(self, dataset):
         # updates graph plots from data(remakes plots and draws)
         print('updating data')
+        self.filtered_frames = {}
         try:
             count = 1
-            df = dataset.sort_values(self.x_axis.get(), ignore_index=True)
 
             # clear values from previous plots, reset summary labels
             self.ax1.clear()
@@ -377,16 +377,19 @@ class APP(ctk.CTk):
                 widget.destroy()
 
             # manually make an additional label for the x axis value
-            self.current_y_values[self.x_axis.get()] = ctk.StringVar(value=self.x_axis.get())
-            data_label = ctk.CTkLabel(self.summary_frame, corner_radius=0, textvariable=self.current_y_values[self.x_axis.get()], font=self.font2, text_color='grey50')
+            selected_x_axis = self.x_axis.get()
+            self.current_y_values[selected_x_axis] = ctk.StringVar(value=selected_x_axis)
+            data_label = ctk.CTkLabel(self.summary_frame, corner_radius=0, textvariable=self.current_y_values[selected_x_axis], font=self.font2, text_color='grey50')
             data_label.grid(row=0, column=1, padx=5, pady=2, sticky='w')
-            text_label= ctk.CTkLabel(self.summary_frame, corner_radius=0, text=f'{self.x_axis.get()}: ', font=self.font2, text_color='yellow2')
+            text_label= ctk.CTkLabel(self.summary_frame, corner_radius=0, text=f'{selected_x_axis}: ', font=self.font2, text_color='yellow2')
             text_label.grid(row=0, column=0, padx=5, pady=2 , sticky='w')
 
             # Replot new selected plots, and remake summary labels
-            for c in df:
+            for c in dataset:
                 if self.parameter_selections[c].get():
-                    lines = self.ax1.plot(df[self.x_axis.get()], df[c], label=c, linewidth=1) #plot the line
+                    filtered_frame = dataset.dropna(subset=[f'{c}'])[[selected_x_axis, f'{c}']]
+                    self.filtered_frames[c] = filtered_frame
+                    self.ax1.plot(filtered_frame[selected_x_axis], filtered_frame[c], label=c, linewidth=1) #plot the line
                     self.current_y_values[c] = ctk.StringVar(value=c)
                     data_label = ctk.CTkLabel(self.summary_frame, corner_radius=0, textvariable=self.current_y_values[c], font=self.font2, text_color='grey50')
                     data_label.grid(row=count, column=1, padx=5, pady=2, sticky='w')
@@ -404,27 +407,68 @@ class APP(ctk.CTk):
 
     
     def mouse_event(self, event):
-        # on click, update summary values to the value of each visible graphs at the nearest x cordinate(snaps to nearest real datapoint)
-        raw_x_value = event.xdata
-        minvalue_index = np.abs(self.filtered_df[self.x_axis.get()] - raw_x_value).argmin()
-        for c in self.filtered_df:
-            if c != self.x_axis.get():
-                if self.parameter_selections[c].get():
-                    self.current_y_values[c].set(round(self.filtered_df[c].iloc[minvalue_index], 3))
-            else:
-                self.current_y_values[self.x_axis.get()].set(round(self.filtered_df[self.x_axis.get()].iloc[minvalue_index], 3))
-        try:
-            self.clicked_hline.remove()
-        except AttributeError:
-            pass
+        # on click, if crosshair enabled - update summary values to the value of each visible graphs at the nearest x cordinate(snaps to nearest real datapoint)
+        if self.crosshair_state.get():
 
-        self.clicked_hline = self.ax1.axvline(x = self.filtered_df[self.x_axis.get()].iloc[minvalue_index], ls='--', color='yellow')
-        self.canvas1.draw()
+            raw_x_value = event.xdata
+
+            try:
+                self.clicked_hline.remove()
+    
+            except AttributeError:
+                pass
+
+            try:
+                self.scat_plt1.remove()
+    
+            except AttributeError:
+                pass
+
+            lines = self.ax1.get_lines()
+            selected_xaxis = self.x_axis.get()
+
+            n = 0
+            scat_x_vals = []
+            scat_y_vals = []
+
+            for c in self.filtered_df:
+                if c != selected_xaxis:
+                    if self.parameter_selections[c].get():
+                        line = lines[n]
+                        x_data, y_data = line.get_data()
+                        n += 1
+
+                        minvalue_index = np.abs(x_data - raw_x_value).argmin()              #gets the closest x_data point for the clicked x position for each line indiviually
+
+                        self.current_y_values[c].set(round(self.filtered_df.loc[self.filtered_df[selected_xaxis] == x_data[minvalue_index], f'{c}'].values[0], 3))        # we still set summary frame data directly from the dataframe, so normalization has no effect
+
+                        scat_x_vals.append(x_data[minvalue_index])
+                        scat_y_vals.append(y_data[minvalue_index])
+
+                else:
+                    minvalue_index = np.abs(self.filtered_df[selected_xaxis] - raw_x_value).argmin()
+                    self.current_y_values[selected_xaxis].set(round(self.filtered_df[selected_xaxis].loc[minvalue_index], 3))
+
+            self.clicked_hline = self.ax1.axvline(x = raw_x_value, ls='--', color='yellow')
+            self.scat_plt1 = self.ax1.scatter(scat_x_vals, scat_y_vals, c='yellow', marker='x', s=60)
+
+            self.canvas1.draw()
 
 
     def key_event(self, event):
         # this function manages our custom hotkeys
-        pass
+        if event.key == 'x':
+            if self.crosshair_state.get():  # if the crosshair is on, turn it off, set the visibility false and redraw it to remove the cursor from the screen
+
+                self.crosshair_state.set(0)
+                need_redraw = self.blitted_cursor1.set_cross_hair_visible(False)
+
+                if need_redraw:
+                    self.blitted_cursor1.ax.figure.canvas.restore_region(self.blitted_cursor1.background)
+                    self.blitted_cursor1.ax.figure.canvas.blit(self.blitted_cursor1.ax.bbox)
+
+            else:
+                self.crosshair_state.set(1)
 
 
     def normalize_data(self):
