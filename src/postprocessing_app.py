@@ -86,7 +86,7 @@ class APP(ctk.CTk):
         super().__init__()
 
         # configure application window
-        self.title('V1.0.0')
+        self.title('V1.1.0')
         scrn_w = self.winfo_screenwidth() - 100
         scrn_h = self.winfo_screenheight() - 100
         self.config(background='black')
@@ -119,7 +119,9 @@ class APP(ctk.CTk):
         self.cycle_list =  []
         self.parameter_selections =  {}
         self.crosshair_state = ctk.IntVar(value=0)
-        self.double_import = ctk.IntVar(value=0)
+        self.normalize_state = ctk.IntVar(value=0)
+        self.fullsys_import = ctk.IntVar(value=0)
+        self.mixed_import = ctk.IntVar(value=0)
         self.text_filepath1 =  ctk.StringVar(value='File(s): ')
         self.text_filepath2 =  ctk.StringVar()
 
@@ -140,11 +142,14 @@ class APP(ctk.CTk):
         self.file_text2 = ctk.CTkLabel(self.import_frame, corner_radius=5, textvariable=self.text_filepath2, fg_color='black', text_color='grey50', font=self.font2, width=250, anchor='w')
         self.file_text2.grid(row=1, column=0, padx=5, pady=[0,5], sticky='new')
 
-        self.double_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Import both Mdata and Ydata', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', variable=self.double_import)
-        self.double_import_checkbox.grid(row=2, column=0, padx=5, pady=5, sticky='new')
+        self.fullsys_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Fullsystem Import', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', variable=self.fullsys_import)
+        self.fullsys_import_checkbox.grid(row=2, column=0, padx=5, pady=5, sticky='new')
+
+        self.mixed_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Mixed script Import', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', variable=self.mixed_import)
+        self.mixed_import_checkbox.grid(row=3, column=0, padx=5, pady=5, sticky='new')
 
         self.import_button = ctk.CTkButton(self.import_frame, corner_radius=5, text='Import File(s)', fg_color='yellow2', text_color='grey18', font=self.font1, command=self.import_file, hover_color='grey50')
-        self.import_button.grid(row=3, column=0, padx=10, pady=10, sticky='nsew')
+        self.import_button.grid(row=4, column=0, padx=10, pady=10, sticky='nsew')
         
 
         # Parameter Frame
@@ -153,7 +158,7 @@ class APP(ctk.CTk):
 
         self.parameter_switches = {}
         for i, p in enumerate(self.parameter_selections):
-            switch = ctk.CTkSwitch(self.parameter_frame, text=p, variable=self.parameter_selections[p], command=lambda: self.update_graph(self.filtered_df), font=self.font2, progress_color='yellow2', fg_color='black', button_color='grey50', text_color='grey50', switch_width=40)
+            switch = ctk.CTkSwitch(self.parameter_frame, text=p, variable=self.parameter_selections[p], command=self.update_graph, font=self.font2, progress_color='yellow2', fg_color='black', button_color='grey50', text_color='grey50', switch_width=40)
             switch.grid(row=i, column=0, padx=15, pady=5, sticky='ew')
             self.parameter_switches[p] = switch
 
@@ -166,15 +171,12 @@ class APP(ctk.CTk):
         self.options_header = ctk.CTkLabel(self.options_frame, corner_radius=0, fg_color='yellow2', text_color='grey18', text='OPTIONS', font=self.font1)
         self.options_header.grid(row=0, column=0, padx=0, pady=0, sticky='nsew')
 
-        self.normalized_button = ctk.CTkButton(self.options_frame, text='Normalize', corner_radius=5, fg_color='yellow2', font=self.font1, text_color='grey18', hover_color='grey50', command=self.normalize_data)
-        self.normalized_button.grid(row=1, column=0, padx=5, pady=(10,5), sticky='nsew' )
+        self.normalize_checkbox = ctk.CTkCheckBox(self.options_frame, text='Normalize', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50',command=self.normalize_data, variable=self.normalize_state)
+        self.normalize_checkbox.grid(row=1, column=0, padx=5, pady=5, sticky='nsew' )
+
 
         self.crosshair_checkbox = ctk.CTkCheckBox(self.options_frame, text='Crosshair', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', variable=self.crosshair_state)
         self.crosshair_checkbox.grid(row=2, column=0, padx=5, pady=5, sticky='nsew' )
-
-        #self.force_close_button = ctk.CTkButton(self.options_frame, text='Force Close', corner_radius=5, fg_color='yellow2', font=self.font1, text_color='grey18', hover_color='grey50', command=lambda: _quit(self))
-        #self.force_close_button.grid(row=2, column=0, padx=5, pady=5, sticky='nsew' )
-
 
 
         # Graph Frame
@@ -264,7 +266,9 @@ class APP(ctk.CTk):
 
     def import_file(self):
         try:
-            if self.double_import.get(): # if you want to import both Mdata and Ydata and then merge them into full_df
+            ### need to add function to buttons so you cannot select both mixed import and fullsys_imnport
+
+            if self.fullsys_import.get(): # if you want to import both Mdata and Ydata and then merge them into full_df
                 filename1 = tk.filedialog.askopenfilename(title = "Select Mdata",
                                                         filetypes = [('CSV files', '*.csv')])
                 self.text_filepath1.set(f' File(s): {filename1[-25:]}')
@@ -275,18 +279,59 @@ class APP(ctk.CTk):
 
                 with open(filename2, 'r+') as file:
                     reader = csv.reader(file)
-                    association_str = next(reader)[0]
-                    associations = ast.literal_eval(association_str)
+                    association_str = next(reader)[0]           # a string which contains the information about the connections of the system, which meters were connected to which yeti's
+                    associations = ast.literal_eval(association_str)        
                     associations = {key: associations[key][1][0] for key in associations}
 
 
                 Mdata_df = pd.read_csv(filename1, index_col=False)
                 Ydata_df = pd.read_csv(filename2, index_col=False, skiprows=1)
-                Ydata_df['M_ID'] = Ydata_df['Yeti_ID'].map(associations)
+                Ydata_df['M_ID'] = Ydata_df['Yeti_ID'].map(associations)    # add M_ID to the yeti dataframe based on associations, so that it can be merged on later. 
                 self.full_df = Mdata_df.merge(Ydata_df, on=['M_ID', 'packet_num'], how='inner', copy=False)
 
                 drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object') and (c not in ['Yeti_ID', 'channel', 'cycle'])]
                 
+            
+            elif self.mixed_import.get():
+                # merge two dataframes from diffrent scripts, two mappls scripts, mappl + serial, serial + serial, etc. May have mixed frequencies, so merge on E_Time
+                filename1 = tk.filedialog.askopenfilename(title = "Dataset_1",
+                                                        filetypes = [('CSV files', '*.csv')])
+                self.text_filepath1.set(f' File(s): {filename1[-25:]}')
+
+                filename2 = tk.filedialog.askopenfilename(title = "Dataset_2",
+                                                    filetypes = [('CSV files', '*.csv')])
+                self.text_filepath2.set(f'{filename2[-30:]}')
+
+                filenames = [filename1, filename2]
+                dataframes = []
+
+                for filename in filenames:
+                    new_df = pd.read_csv(filename)
+
+                    if 'M_ID' in new_df.columns:
+                        filtered_dfs = []
+                        unique_meters = new_df['M_ID'].unique()
+                        for meter in unique_meters:
+                            filtered_frame = new_df[new_df['M_ID'] == meter].drop(columns=['M_ID', 'Unnamed: 0'])
+                            filtered_frame.columns = [f'{col} {str(meter)}' for col in filtered_frame.columns if col not in ('Time', 'Epoch_Time')] + ['Time', 'Epoch_Time']
+                            filtered_dfs += [filtered_frame]
+
+                        new_df = reduce(lambda left, right: pd.merge(left, right, on='Time'), filtered_dfs)
+
+
+                    dataframes.append(new_df)
+
+                #combine the dataframes here after deleting redundant time columns, and some more weird columns before merging
+                for df in dataframes:
+                    c_set = set(df.columns)
+                    drop_set = set(['Time', 'Unnamed: 0'])
+                    df.drop(columns=list(c_set.intersection(drop_set)), inplace=True)
+                    
+
+                self.full_df = dataframes[0].merge(dataframes[1], on='Epoch_Time', how='outer')
+                #drop columns and conditional logic here
+                drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object')]
+
             else: # if you dont want to merge, and you already have a good df, either from serial logger, previous merge, etc.
                 filename1 = tk.filedialog.askopenfilename(initialdir = "/",
                                                     title = "Select a File",
@@ -299,16 +344,15 @@ class APP(ctk.CTk):
                     unique_meters = self.full_df['M_ID'].unique()
                     for meter in unique_meters:
                         filtered_frame = self.full_df[self.full_df['M_ID'] == meter].drop(columns=['M_ID', 'Unnamed: 0'])
-                        print(filtered_frame.columns)
-                        filtered_frame.columns = [f'{col} {str(meter)}' for col in filtered_frame.columns if col != 'timestamp'] + ['timestamp']
+                        filtered_frame.columns = [f'{col} {str(meter)}' for col in filtered_frame.columns if col != 'Time'] + ['Time']
                         filtered_dfs += [filtered_frame]
 
-                    self.full_df = reduce(lambda left, right: pd.merge(left, right, on='timestamp'), filtered_dfs)
+                    self.full_df = reduce(lambda left, right: pd.merge(left, right, on='Time'), filtered_dfs)
 
                 drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object')] #if the colum has mixed datatypes, we drop it, gets ride of weird columns in serial logger data
 
+
             self.disabled_button = None
-            self.x_axis.set('')
 
             try:
                 self.yeti_list = [str(y) for y in self.full_df['Yeti_ID'].unique()]
@@ -329,12 +373,19 @@ class APP(ctk.CTk):
             self.full_df = self.full_df.drop(drop_columns, axis=1)
             self.df_columns = self.full_df.columns
 
+
             self.parameter_selections = {}
             for c in self.full_df.columns:
                 if c not in ['Yeti_ID', 'channel', 'cycle']:
                     self.parameter_selections[c] = ctk.BooleanVar()
             
             self.init_frames()
+
+            if self.mixed_import.get():
+                self.x_axis.set('Epoch_Time')
+                self.xaxis_menu.configure(state='disabled')
+            else:
+                self.x_axis.set('')
 
         except FileNotFoundError as err:
             print(err)
@@ -346,27 +397,32 @@ class APP(ctk.CTk):
             self.parameter_switches[self.disabled_button].configure(state='normal')
 
         self.parameter_selections[self.x_axis.get()].set(False)
-        self.parameter_switches[self.x_axis.get()].configure(state = 'disabled')
+        self.parameter_switches[self.x_axis.get()].configure(state='disabled')
         self.disabled_button = self.x_axis.get() # save the most recently disabled buttons name as a variable
 
         try:
             if self.yeti_selection.get() and self.output_selection.get() and self.cycle_selection.get(): # if filters selections are made, filter. Note 'All' must be selected if you do not want to be filter by that column
                 filtered_df = self.full_df.query(f'Yeti_ID == "{self.yeti_selection.get()}" and channel == {self.output_selection.get()} and cycle == {self.cycle_selection.get()}')
-                filtered_df = filtered_df.drop(labels=['Yeti_ID', 'channel', 'cycle'], axis=1)
+                filtered_df = filtered_df.drop(labels=['Yeti_ID', 'channel', 'cycle'])
                 self.filtered_df = filtered_df
-                self.update_graph(filtered_df)
+                self.update_graph()
             else:
                 self.filtered_df = self.full_df
-                self.update_graph(self.filtered_df)
+                self.update_graph()
             
         except SyntaxError as err:
             print(err)
 
 
-    def update_graph(self, dataset):
+    def update_graph(self):
         # updates graph plots from data(remakes plots and draws)
-        print('updating data')
+        if self.normalize_state.get():
+            dataset = self.normalized_df
+        else:
+            dataset = self.filtered_df
+
         self.filtered_frames = {}
+
         try:
             count = 1
 
@@ -415,13 +471,13 @@ class APP(ctk.CTk):
             try:
                 self.clicked_hline.remove()
     
-            except AttributeError:
+            except (AttributeError, ValueError):
                 pass
 
             try:
                 self.scat_plt1.remove()
     
-            except AttributeError:
+            except (AttributeError, ValueError):
                 pass
 
             lines = self.ax1.get_lines()
@@ -438,7 +494,7 @@ class APP(ctk.CTk):
                         x_data, y_data = line.get_data()
                         n += 1
 
-                        minvalue_index = np.abs(x_data - raw_x_value).argmin()              #gets the closest x_data point for the clicked x position for each line indiviually
+                        minvalue_index = np.abs(x_data - raw_x_value).argmin()             #gets the closest x_data point for the clicked x position for each line indiviually
 
                         self.current_y_values[c].set(round(self.filtered_df.loc[self.filtered_df[selected_xaxis] == x_data[minvalue_index], f'{c}'].values[0], 3))        # we still set summary frame data directly from the dataframe, so normalization has no effect
 
@@ -457,6 +513,9 @@ class APP(ctk.CTk):
 
     def key_event(self, event):
         # this function manages our custom hotkeys
+
+
+        ##### -------------------------------------------------------------------------
         if event.key == 'x':
             if self.crosshair_state.get():  # if the crosshair is on, turn it off, set the visibility false and redraw it to remove the cursor from the screen
 
@@ -470,14 +529,27 @@ class APP(ctk.CTk):
             else:
                 self.crosshair_state.set(1)
 
+        #### --------------------------------------------------------------------------
+        if event.key == 'n':
+            if self.normalize_state.get():
+                self.normalize_state.set(0)
+            else:
+                self.normalize_state.set(1)
+                self.normalize_data()
+
+            self.update_graph()
+
+        #### -------------------------------------------------------------------------
 
     def normalize_data(self):
-        column_mins = self.filtered_df.min()
-        offset_df = (self.filtered_df - column_mins ) # subtracts each columns minimum value to fit them all around 0
-        offset_df_max = offset_df.max()
-        normalized_df = offset_df / offset_df_max
-        normalized_df[self.x_axis.get()] = self.filtered_df[self.x_axis.get()] # reset the Time column as we don't want it normalized
-        self.update_graph(normalized_df)
+        if self.normalize_state.get():
+    
+            offset_df = self.filtered_df.subtract(self.filtered_df.min())
+
+            self.normalized_df = offset_df.apply(lambda x: x.div(x.max()) if x.max() != 0 else x, axis=0)
+            self.normalized_df[self.x_axis.get()] = self.filtered_df[self.x_axis.get()] # reset the xaxis column as we don't want it normalized
+
+        self.update_graph()
 
     
 if __name__ == '__main__':
