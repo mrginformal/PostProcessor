@@ -120,8 +120,8 @@ class APP(ctk.CTk):
         self.parameter_selections =  {}
         self.crosshair_state = ctk.IntVar(value=0)
         self.normalize_state = ctk.IntVar(value=0)
-        self.fullsys_import = ctk.IntVar(value=0)
-        self.mixed_import = ctk.IntVar(value=0)
+        self.fullsys_import_state = ctk.IntVar(value=0)
+        self.mixed_import_state = ctk.IntVar(value=0)
         self.text_filepath1 =  ctk.StringVar(value='File(s): ')
         self.text_filepath2 =  ctk.StringVar()
 
@@ -142,10 +142,10 @@ class APP(ctk.CTk):
         self.file_text2 = ctk.CTkLabel(self.import_frame, corner_radius=5, textvariable=self.text_filepath2, fg_color='black', text_color='grey50', font=self.font2, width=250, anchor='w')
         self.file_text2.grid(row=1, column=0, padx=5, pady=[0,5], sticky='new')
 
-        self.fullsys_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Fullsystem Import', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', variable=self.fullsys_import)
+        self.fullsys_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Fullsystem Import', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', command=self.fullsys_import_select, variable=self.fullsys_import_state)
         self.fullsys_import_checkbox.grid(row=2, column=0, padx=5, pady=5, sticky='new')
 
-        self.mixed_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Mixed script Import', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', variable=self.mixed_import)
+        self.mixed_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Mixed script Import', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', command=self.mixed_import_select, variable=self.mixed_import_state)
         self.mixed_import_checkbox.grid(row=3, column=0, padx=5, pady=5, sticky='new')
 
         self.import_button = ctk.CTkButton(self.import_frame, corner_radius=5, text='Import File(s)', fg_color='yellow2', text_color='grey18', font=self.font1, command=self.import_file, hover_color='grey50')
@@ -268,7 +268,7 @@ class APP(ctk.CTk):
         try:
             ### need to add function to buttons so you cannot select both mixed import and fullsys_imnport
 
-            if self.fullsys_import.get(): # if you want to import both Mdata and Ydata and then merge them into full_df
+            if self.fullsys_import_state.get(): # if you want to import both Mdata and Ydata and then merge them into full_df
                 filename1 = tk.filedialog.askopenfilename(title = "Select Mdata",
                                                         filetypes = [('CSV files', '*.csv')])
                 self.text_filepath1.set(f' File(s): {filename1[-25:]}')
@@ -292,7 +292,7 @@ class APP(ctk.CTk):
                 drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object') and (c not in ['Yeti_ID', 'channel', 'cycle'])]
                 
             
-            elif self.mixed_import.get():
+            elif self.mixed_import_state.get():
                 # merge two dataframes from diffrent scripts, two mappls scripts, mappl + serial, serial + serial, etc. May have mixed frequencies, so merge on E_Time
                 filename1 = tk.filedialog.askopenfilename(title = "Dataset_1",
                                                         filetypes = [('CSV files', '*.csv')])
@@ -381,7 +381,7 @@ class APP(ctk.CTk):
             
             self.init_frames()
 
-            if self.mixed_import.get():
+            if self.mixed_import_state.get():
                 self.x_axis.set('Epoch_Time')
                 self.xaxis_menu.configure(state='disabled')
             else:
@@ -551,7 +551,16 @@ class APP(ctk.CTk):
 
         self.update_graph()
 
-    
+
+    def fullsys_import_select(self):
+        if self.fullsys_import_state.get():
+            self.mixed_import_state.set(0)
+
+    def mixed_import_select(self):
+        if self.mixed_import_state.get():
+            self.fullsys_import_state.set(0)
+
+
 if __name__ == '__main__':
     app = APP()
     app.mainloop()
