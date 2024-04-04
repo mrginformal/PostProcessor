@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.widgets as wdg
 import matplotlib.style as mplstyle
 import ast
+from pathlib import Path
 import time
 import sys
 from functools import reduce
@@ -135,7 +136,7 @@ class APP(ctk.CTk):
         self.import_frame = ctk.CTkFrame(self, width=250, corner_radius=0, bg_color='black', fg_color='grey18')
         self.import_frame.grid(row=0, column=0, rowspan=2, padx=5, pady=5, sticky='nsew')
         self.import_frame.columnconfigure(0, weight=1)
-        self.import_frame.rowconfigure((0,1,2,3), weight=1)
+        self.import_frame.rowconfigure((0,1,2,3,4,5), weight=1)
 
         self.file_text1 = ctk.CTkLabel(self.import_frame, corner_radius=5, textvariable=self.text_filepath1, fg_color='black', text_color='grey50', font=self.font2, width=250, anchor='w')
         self.file_text1.grid(row=0, column=0, padx=5, pady=[5,0], sticky='new')
@@ -150,6 +151,9 @@ class APP(ctk.CTk):
 
         self.import_button = ctk.CTkButton(self.import_frame, corner_radius=5, text='Import File(s)', fg_color='yellow2', text_color='grey18', font=self.font1, command=self.import_file, hover_color='grey50')
         self.import_button.grid(row=4, column=0, padx=10, pady=10, sticky='nsew')
+
+        self.export_button = ctk.CTkButton(self.import_frame, corner_radius=5, text='Export Data', fg_color='grey50', text_color='grey18', state='disabled', font=self.font1, command=self.export_file, hover_color='grey50')
+        self.export_button.grid(row=5, column=0, padx=10, pady=10, sticky='nsew')
         
 
         # Parameter Frame
@@ -271,11 +275,11 @@ class APP(ctk.CTk):
             if self.fullsys_import_state.get(): # if you want to import both Mdata and Ydata and then merge them into full_df
                 filename1 = tk.filedialog.askopenfilename(title = "Select Mdata",
                                                         filetypes = [('CSV files', '*.csv')])
-                self.text_filepath1.set(f' File(s): {filename1[-25:]}')
+                self.text_filepath1.set(f'File_1: {filename1[-30:]}')
 
                 filename2 = tk.filedialog.askopenfilename(title = "Select Ydata",
                                                     filetypes = [('CSV files', '*.csv')])
-                self.text_filepath2.set(f'{filename2[-30:]}')
+                self.text_filepath2.set(f'File_1: {filename2[-30:]}')
 
                 with open(filename2, 'r+') as file:
                     reader = csv.reader(file)
@@ -293,14 +297,16 @@ class APP(ctk.CTk):
                 
             
             elif self.mixed_import_state.get():
+
+
                 # merge two dataframes from diffrent scripts, two mappls scripts, mappl + serial, serial + serial, etc. May have mixed frequencies, so merge on E_Time
                 filename1 = tk.filedialog.askopenfilename(title = "Dataset_1",
                                                         filetypes = [('CSV files', '*.csv')])
-                self.text_filepath1.set(f' File(s): {filename1[-25:]}')
+                self.text_filepath1.set(f'File_1: {filename1[-30:]}')
 
                 filename2 = tk.filedialog.askopenfilename(title = "Dataset_2",
                                                     filetypes = [('CSV files', '*.csv')])
-                self.text_filepath2.set(f'{filename2[-30:]}')
+                self.text_filepath2.set(f'File_2: {filename2[-30:]}')
 
                 filenames = [filename1, filename2]
                 dataframes = []
@@ -328,7 +334,7 @@ class APP(ctk.CTk):
                     df.drop(columns=list(c_set.intersection(drop_set)), inplace=True)
                     
 
-                self.full_df = dataframes[0].merge(dataframes[1], on='Epoch_Time', how='outer')
+                self.full_df = dataframes[0].merge(dataframes[1], on='Epoch_Time', how='outer', suffixes=('_File_1', '_File_2'))
                 #drop columns and conditional logic here
                 drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object')]
 
@@ -350,7 +356,8 @@ class APP(ctk.CTk):
                     self.full_df = reduce(lambda left, right: pd.merge(left, right, on='Time'), filtered_dfs)
 
                 drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object')] #if the colum has mixed datatypes, we drop it, gets ride of weird columns in serial logger data
-
+                if 'Unnamed: 0' in self.full_df.columns:
+                    drop_columns.append('Unnamed: 0')
 
             self.disabled_button = None
 
@@ -382,8 +389,7 @@ class APP(ctk.CTk):
             self.init_frames()
 
             if self.mixed_import_state.get():
-                self.x_axis.set('Epoch_Time')
-                self.xaxis_menu.configure(state='disabled')
+                self.export_button.configure(state='normal', fg_color='yellow2')        #allow export of dataset
             else:
                 self.x_axis.set('')
 
@@ -559,6 +565,14 @@ class APP(ctk.CTk):
     def mixed_import_select(self):
         if self.mixed_import_state.get():
             self.fullsys_import_state.set(0)
+
+    def export_file(self):
+        export_filename = Path(tk.filedialog.asksaveasfilename(defaultextension='.csv', title='Save output data as: ', filetypes = [('CSV files', '*csv')]))
+        if export_filename.exists():
+            export_filename.unlink()
+
+        if self.filtered_df is not None:
+            self.filtered_df.to_csv(export_filename, header=True)
 
 
 if __name__ == '__main__':
