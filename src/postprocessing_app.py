@@ -87,7 +87,7 @@ class APP(ctk.CTk):
         super().__init__()
 
         # configure application window
-        self.title('V1.1.0')
+        self.title('V1.1.3')
         scrn_w = self.winfo_screenwidth() - 100
         scrn_h = self.winfo_screenheight() - 100
         self.config(background='black')
@@ -322,7 +322,7 @@ class APP(ctk.CTk):
                             filtered_frame.columns = [f'{col} {str(meter)}' for col in filtered_frame.columns if col not in ('Time', 'Epoch_Time')] + ['Time', 'Epoch_Time']
                             filtered_dfs += [filtered_frame]
 
-                        new_df = reduce(lambda left, right: pd.merge(left, right, on='Time'), filtered_dfs)
+                        new_df = reduce(lambda left, right: pd.merge(left, right, on=['Time', 'Epoch_Time']), filtered_dfs)
 
 
                     dataframes.append(new_df)
@@ -350,10 +350,10 @@ class APP(ctk.CTk):
                     unique_meters = self.full_df['M_ID'].unique()
                     for meter in unique_meters:
                         filtered_frame = self.full_df[self.full_df['M_ID'] == meter].drop(columns=['M_ID', 'Unnamed: 0'])
-                        filtered_frame.columns = [f'{col} {str(meter)}' for col in filtered_frame.columns if col != 'Time'] + ['Time']
+                        filtered_frame.columns = [f'{col} {str(meter)}' for col in filtered_frame.columns if col not in ('Time', 'Epoch_Time')] + ['Time', 'Epoch_Time']
                         filtered_dfs += [filtered_frame]
 
-                    self.full_df = reduce(lambda left, right: pd.merge(left, right, on='Time'), filtered_dfs)
+                    self.full_df = reduce(lambda left, right: pd.merge(left, right, on=['Time', 'Epoch_Time']), filtered_dfs)
 
                 drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object')] #if the colum has mixed datatypes, we drop it, gets ride of weird columns in serial logger data
                 if 'Unnamed: 0' in self.full_df.columns:
@@ -438,7 +438,7 @@ class APP(ctk.CTk):
             for widget in self.summary_frame.winfo_children():
                 widget.destroy()
 
-            # manually make an additional label for the x axis value
+            # manually make an additional summary label for the x axis value
             selected_x_axis = self.x_axis.get()
             self.current_y_values[selected_x_axis] = ctk.StringVar(value=selected_x_axis)
             data_label = ctk.CTkLabel(self.summary_frame, corner_radius=0, textvariable=self.current_y_values[selected_x_axis], font=self.font2, text_color='grey50')
@@ -502,7 +502,7 @@ class APP(ctk.CTk):
 
                         minvalue_index = np.abs(x_data - raw_x_value).argmin()             #gets the closest x_data point for the clicked x position for each line indiviually
 
-                        self.current_y_values[c].set(round(self.filtered_df.loc[self.filtered_df[selected_xaxis] == x_data[minvalue_index], f'{c}'].values[0], 3))        # we still set summary frame data directly from the dataframe, so normalization has no effect
+                        self.current_y_values[c].set(round(self.filtered_df.loc[self.filtered_df[selected_xaxis] == x_data[minvalue_index], f'{c}'].values[0], 3))        # we still get summary frame data directly from the dataframe, so normalization has no effect
 
                         scat_x_vals.append(x_data[minvalue_index])
                         scat_y_vals.append(y_data[minvalue_index])
