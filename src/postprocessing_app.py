@@ -285,16 +285,16 @@ class APP(ctk.CTk):
                     reader = csv.reader(file)
                     association_str = next(reader)[0]           # a string which contains the information about the connections of the system, which meters were connected to which yeti's
                     associations = ast.literal_eval(association_str)        
-                    associations = {key: associations[key][1][0] for key in associations}
+                    associations = {key: associations[key][1] for key in associations}
 
 
                 Mdata_df = pd.read_csv(filename1, index_col=False)
                 Ydata_df = pd.read_csv(filename2, index_col=False, skiprows=1)
-                Ydata_df['M_ID'] = Ydata_df['Yeti_ID'].map(associations)    # add M_ID to the yeti dataframe based on associations, so that it can be merged on later. 
+                Ydata_df['M_ID'] = Ydata_df['mac'].map(associations)    # add M_ID to the yeti dataframe based on associations, so that it can be merged on later. 
                 self.full_df = Mdata_df.merge(Ydata_df, on=['M_ID', 'packet_num'], how='inner', copy=False)
 
-                drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object') and (c not in ['Yeti_ID', 'channel', 'cycle'])]
-                
+                drop_columns = [c for c in self.full_df.columns if (self.full_df.dtypes[c] == 'object') and (c not in ['mac', 'channel', 'cycle'])] + ['Unnamed: 0_x', 'Unnamed: 0_y', 'packet_num']
+
             
             elif self.mixed_import_state.get():
 
@@ -362,7 +362,7 @@ class APP(ctk.CTk):
             self.disabled_button = None
 
             try:
-                self.yeti_list = [str(y) for y in self.full_df['Yeti_ID'].unique()]
+                self.yeti_list = [str(y) for y in self.full_df['mac'].unique()]
                 self.yeti_selection = ctk.StringVar()
                 self.output_list = [str(o) for o in self.full_df['channel'].unique()]
                 self.output_selection = ctk.StringVar()
@@ -377,13 +377,13 @@ class APP(ctk.CTk):
                 self.cycle_selection.set('')
                 self.output_selection.set('')
 
-            self.full_df = self.full_df.drop(drop_columns, axis=1)
+            self.full_df = self.full_df.drop(columns=drop_columns, axis=1)
             self.df_columns = self.full_df.columns
 
 
             self.parameter_selections = {}
             for c in self.full_df.columns:
-                if c not in ['Yeti_ID', 'channel', 'cycle']:
+                if c not in ['mac', 'channel', 'cycle']:
                     self.parameter_selections[c] = ctk.BooleanVar()
             
             self.init_frames()
@@ -408,9 +408,11 @@ class APP(ctk.CTk):
 
         try:
             if self.yeti_selection.get() and self.output_selection.get() and self.cycle_selection.get(): # if filters selections are made, filter. Note 'All' must be selected if you do not want to be filter by that column
-                filtered_df = self.full_df.query(f'Yeti_ID == "{self.yeti_selection.get()}" and channel == {self.output_selection.get()} and cycle == {self.cycle_selection.get()}')
-                filtered_df = filtered_df.drop(labels=['Yeti_ID', 'channel', 'cycle'])
-                self.filtered_df = filtered_df
+                filtered_df = self.full_df.query(f'mac == "{self.yeti_selection.get()}" and channel == "{self.output_selection.get()}"')
+                #filtered_df = self.full_df.query(f'mac == "{self.yeti_selection.get()}" and channel == "{self.output_selection.get()}" and cycle == {self.cycle_selection.get()}')
+
+                filtered_df = filtered_df.drop(labels=['mac', 'channel', 'cycle'], axis=1)
+                self.filtered_df = filtered_df.sort_values(self.x_axis.get())
                 self.update_graph()
             else:
                 self.filtered_df = self.full_df
@@ -509,7 +511,7 @@ class APP(ctk.CTk):
 
                 else:
                     minvalue_index = np.abs(self.filtered_df[selected_xaxis] - raw_x_value).argmin()
-                    self.current_y_values[selected_xaxis].set(round(self.filtered_df[selected_xaxis].loc[minvalue_index], 3))
+                    self.current_y_values[selected_xaxis].set(round(self.filtered_df[selected_xaxis].iloc[minvalue_index], 3))
 
             self.clicked_hline = self.ax1.axvline(x = raw_x_value, ls='--', color='yellow')
             self.scat_plt1 = self.ax1.scatter(scat_x_vals, scat_y_vals, c='yellow', marker='x', s=60)
