@@ -366,7 +366,7 @@ class APP(ctk.CTk):
                 self.yeti_selection = ctk.StringVar()
                 self.output_list = [str(o) for o in self.full_df['channel'].unique()]
                 self.output_selection = ctk.StringVar()
-                self.cycle_list = [str(c) for c in self.full_df['cycle'].unique()]
+                self.cycle_list = [str(c) for c in self.full_df['cycle'].unique()] + ['All']
                 self.cycle_selection = ctk.StringVar()
 
             except (KeyError, ValueError):
@@ -408,10 +408,14 @@ class APP(ctk.CTk):
 
         try:
             if self.yeti_selection.get() and self.output_selection.get() and self.cycle_selection.get(): # if filters selections are made, filter. Note 'All' must be selected if you do not want to be filter by that column
-                filtered_df = self.full_df.query(f'mac == "{self.yeti_selection.get()}" and channel == "{self.output_selection.get()}"')
-                #filtered_df = self.full_df.query(f'mac == "{self.yeti_selection.get()}" and channel == "{self.output_selection.get()}" and cycle == {self.cycle_selection.get()}')
+                
+                if self.cycle_selection.get() == 'All':
+                    filtered_df = self.full_df.query(f'mac == "{self.yeti_selection.get()}" and channel == "{self.output_selection.get()}"')
+                    filtered_df = filtered_df.drop(labels=['mac', 'channel'], axis=1)
+                else:
+                    filtered_df = self.full_df.query(f'mac == "{self.yeti_selection.get()}" and channel == "{self.output_selection.get()}" and cycle == {self.cycle_selection.get()}')
+                    filtered_df = filtered_df.drop(labels=['mac', 'channel', 'cycle'], axis=1)
 
-                filtered_df = filtered_df.drop(labels=['mac', 'channel', 'cycle'], axis=1)
                 self.filtered_df = filtered_df.sort_values(self.x_axis.get())
                 self.update_graph()
             else:
@@ -450,18 +454,37 @@ class APP(ctk.CTk):
 
             # Replot new selected plots, and remake summary labels
             for c in dataset:
-                if self.parameter_selections[c].get():
-                    filtered_frame = dataset.dropna(subset=[f'{c}'])[[selected_x_axis, f'{c}']]
-                    self.filtered_frames[c] = filtered_frame
-                    self.ax1.plot(filtered_frame[selected_x_axis], filtered_frame[c], label=c, linewidth=1) #plot the line
-                    self.current_y_values[c] = ctk.StringVar(value=c)
-                    data_label = ctk.CTkLabel(self.summary_frame, corner_radius=0, textvariable=self.current_y_values[c], font=self.font2, text_color='grey50')
-                    data_label.grid(row=count, column=1, padx=5, pady=2, sticky='w')
-                    text_label= ctk.CTkLabel(self.summary_frame, corner_radius=0, text=f'{c}: ', font=self.font2, text_color='yellow2', justify='left', wraplength=150)
-                    text_label.grid(row=count, column=0, padx=5, pady=2 , sticky='w')
-                    count += 1
+                if c == 'cycle':
+                    pass
 
-            if count != 0: # only draw legend if there are actualy plots, if no plots selected count = 0
+                else:
+                    if self.parameter_selections[c].get():
+                        if self.cycle_selection.get() == 'All':
+                            filtered_frame = dataset.dropna(subset=[f'{c}'])[[selected_x_axis, f'{c}', 'cycle']]
+                            cycles = filtered_frame['cycle'].unique()
+                            for cycle in cycles:
+                                cycle_name = c + '-' + str(cycle)
+                                subset = filtered_frame[filtered_frame['cycle'] == cycle]
+                                self.filtered_frames[cycle_name] = subset
+                                self.ax1.plot(subset[selected_x_axis], subset[c], label=cycle_name, linewidth=1) #plot the line
+                                self.current_y_values[cycle_name] = ctk.StringVar(value=cycle_name)
+                                data_label = ctk.CTkLabel(self.summary_frame, corner_radius=0, textvariable=self.current_y_values[cycle_name], font=self.font2, text_color='grey50')
+                                data_label.grid(row=count, column=1, padx=5, pady=2, sticky='w')
+                                text_label= ctk.CTkLabel(self.summary_frame, corner_radius=0, text=f'{cycle_name}: ', font=self.font2, text_color='yellow2', justify='left', wraplength=150)
+                                text_label.grid(row=count, column=0, padx=5, pady=2 , sticky='w')
+                                count += 1
+                        else:
+                            filtered_frame = dataset.dropna(subset=[f'{c}'])[[selected_x_axis, f'{c}']]
+                            self.filtered_frames[c] = filtered_frame
+                            self.ax1.plot(filtered_frame[selected_x_axis], filtered_frame[c], label=c, linewidth=1) #plot the line
+                            self.current_y_values[c] = ctk.StringVar(value=c)
+                            data_label = ctk.CTkLabel(self.summary_frame, corner_radius=0, textvariable=self.current_y_values[c], font=self.font2, text_color='grey50')
+                            data_label.grid(row=count, column=1, padx=5, pady=2, sticky='w')
+                            text_label= ctk.CTkLabel(self.summary_frame, corner_radius=0, text=f'{c}: ', font=self.font2, text_color='yellow2', justify='left', wraplength=150)
+                            text_label.grid(row=count, column=0, padx=5, pady=2 , sticky='w')
+                            count += 1
+
+            if count > 1: # only draw legend if there are actualy plots, if no plots selected count = 0
                 self.ax1.legend()
 
             self.canvas1.draw()
@@ -497,19 +520,33 @@ class APP(ctk.CTk):
 
             for c in self.filtered_df:
                 if c != selected_xaxis:
-                    if self.parameter_selections[c].get():
-                        line = lines[n]
-                        x_data, y_data = line.get_data()
-                        n += 1
+                    if c != 'cycle':
+                        if self.parameter_selections[c].get():
+                            line = lines[n]
+                            x_data, y_data = line.get_data()
+                            n += 1
+                            minvalue_index = np.abs(x_data - raw_x_value).argmin()             #gets the closest x_data point for the clicked x position for each line indiviually
 
-                        minvalue_index = np.abs(x_data - raw_x_value).argmin()             #gets the closest x_data point for the clicked x position for each line indiviually
+                            if self.cycle_selection.get() == 'All':
+                                for name in self.current_y_values:
+                                    split_name = name.split('-')
+                                    if c == split_name[0]:
+                                        print(split_name[0], split_name[1], x_data[minvalue_index])
+                                        set_values = self.filtered_df.loc[self.filtered_df['cycle'] == int(split_name[1]), [f'{c}', selected_xaxis]]
+                                        print(set_values)
+                                        single_value = set_values.loc[set_values[selected_xaxis] == x_data[minvalue_index]]
+                                        print(single_value)
+                                        self.current_y_values[name].set(round(single_value[split_name[0]].values[0], 3))
+                                        scat_x_vals.append(x_data[minvalue_index])
+                                        scat_y_vals.append(y_data[minvalue_index])
 
-                        self.current_y_values[c].set(round(self.filtered_df.loc[self.filtered_df[selected_xaxis] == x_data[minvalue_index], f'{c}'].values[0], 3))        # we still get summary frame data directly from the dataframe, so normalization has no effect
+                            else: # is selected, but "All" cyles isn't
+                                self.current_y_values[name].set(round(self.filtered_df.loc[self.filtered_df[selected_xaxis] == x_data[minvalue_index], f'{c}'].values[0], 3))        # we still get summary frame data directly from the dataframe, so normalization has no effect
 
-                        scat_x_vals.append(x_data[minvalue_index])
-                        scat_y_vals.append(y_data[minvalue_index])
+                                scat_x_vals.append(x_data[minvalue_index])
+                                scat_y_vals.append(y_data[minvalue_index])
 
-                else:
+                else: # it is x axis
                     minvalue_index = np.abs(self.filtered_df[selected_xaxis] - raw_x_value).argmin()
                     self.current_y_values[selected_xaxis].set(round(self.filtered_df[selected_xaxis].iloc[minvalue_index], 3))
 
