@@ -15,7 +15,7 @@ from functools import reduce
 from matplotlib.backends.backend_tkagg import (
     FigureCanvasTkAgg, NavigationToolbar2Tk)
 
-# V0.9.1
+# V1.4.0
 
 ctk.set_appearance_mode('Dark')
 mplstyle.use('fast')
@@ -87,7 +87,7 @@ class APP(ctk.CTk):
         super().__init__()
 
         # configure application window
-        self.title('V1.1.3')
+        self.title('V1.4.0')
         scrn_w = self.winfo_screenwidth() - 100
         scrn_h = self.winfo_screenheight() - 100
         self.config(background='black')
@@ -121,7 +121,7 @@ class APP(ctk.CTk):
         self.parameter_selections =  {}
         self.crosshair_state = ctk.IntVar(value=0)
         self.normalize_state = ctk.IntVar(value=0)
-        self.fullsys_import_state = ctk.IntVar(value=0)
+        self.fridgeplexor_import_state = ctk.IntVar(value=0)
         self.mixed_import_state = ctk.IntVar(value=0)
         self.text_filepath1 =  ctk.StringVar(value='File(s): ')
         self.text_filepath2 =  ctk.StringVar()
@@ -143,8 +143,8 @@ class APP(ctk.CTk):
         self.file_text2 = ctk.CTkLabel(self.import_frame, corner_radius=5, textvariable=self.text_filepath2, fg_color='black', text_color='grey50', font=self.font2, width=250, anchor='w')
         self.file_text2.grid(row=1, column=0, padx=5, pady=[0,5], sticky='new')
 
-        self.fullsys_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Fullsystem Import', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', command=self.fullsys_import_select, variable=self.fullsys_import_state)
-        self.fullsys_import_checkbox.grid(row=2, column=0, padx=5, pady=5, sticky='new')
+        self.fridgeplexor_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Fridgeplexor Import', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', command=self.fridgeplexor_import_select, variable=self.fridgeplexor_import_state)
+        self.fridgeplexor_import_checkbox.grid(row=2, column=0, padx=5, pady=5, sticky='new')
 
         self.mixed_import_checkbox = ctk.CTkCheckBox(self.import_frame, text='Mixed script Import', corner_radius=5, hover_color='yellow2', fg_color='black',bg_color='grey18', border_color='black', font=self.font2, text_color='grey50', command=self.mixed_import_select, variable=self.mixed_import_state)
         self.mixed_import_checkbox.grid(row=3, column=0, padx=5, pady=5, sticky='new')
@@ -270,9 +270,9 @@ class APP(ctk.CTk):
 
     def import_file(self):
         try:
-            ### need to add function to buttons so you cannot select both mixed import and fullsys_imnport
+            ### need to add function to buttons so you cannot select both mixed import and fridgeplexor_imnport
 
-            if self.fullsys_import_state.get(): # if you want to import both Mdata and Ydata and then merge them into full_df
+            if self.fridgeplexor_import_state.get(): # if you want to import both Mdata and Ydata and then merge them into full_df
                 filename1 = tk.filedialog.askopenfilename(title = "Select Mdata",
                                                         filetypes = [('CSV files', '*.csv')])
                 self.text_filepath1.set(f'File_1: {filename1[-30:]}')
@@ -323,7 +323,6 @@ class APP(ctk.CTk):
                             filtered_dfs += [filtered_frame]
 
                         new_df = reduce(lambda left, right: pd.merge(left, right, on=['Time', 'Epoch_Time']), filtered_dfs)
-
 
                     dataframes.append(new_df)
 
@@ -454,11 +453,10 @@ class APP(ctk.CTk):
 
             # Replot new selected plots, and remake summary labels
             for c in dataset:
-                if c == 'cycle':
-                    pass
-
-                else:
+                if c != 'cycle':
                     if self.parameter_selections[c].get():
+
+                        # if 'All' cycles is selected, it is a full system import, and we need to break the data into multiple lines for each cycle, and then display them all at once, for each selected parameter
                         if self.cycle_selection.get() == 'All':
                             filtered_frame = dataset.dropna(subset=[f'{c}'])[[selected_x_axis, f'{c}', 'cycle']]
                             cycles = filtered_frame['cycle'].unique()
@@ -474,6 +472,7 @@ class APP(ctk.CTk):
                                 text_label.grid(row=count, column=0, padx=5, pady=2 , sticky='w')
                                 count += 1
                         else:
+                            # 'All' is not selected and we plot normally
                             filtered_frame = dataset.dropna(subset=[f'{c}'])[[selected_x_axis, f'{c}']]
                             self.filtered_frames[c] = filtered_frame
                             self.ax1.plot(filtered_frame[selected_x_axis], filtered_frame[c], label=c, linewidth=1) #plot the line
@@ -487,73 +486,112 @@ class APP(ctk.CTk):
             if count > 1: # only draw legend if there are actualy plots, if no plots selected count = 0
                 self.ax1.legend()
 
+            self.lines = self.ax1.get_lines()
             self.canvas1.draw()
 
         except (AttributeError, TypeError) as err:
             print(err)
 
-    
+
+
+
     def mouse_event(self, event):
-        # on click, if crosshair enabled - update summary values to the value of each visible graphs at the nearest x cordinate(snaps to nearest real datapoint)
+        self.highlight(event)
+
         if self.crosshair_state.get():
+            self.crosshair_click(event)
 
-            raw_x_value = event.xdata
+        
+    def highlight(self, event):
+        if hasattr(self, 'ax1'):
+            legend = self.ax1.get_legend()
+            if legend:
+                if legend.contains(event)[0]:
+                    highlights = {}
+                    texts = legend.get_texts()
+                    for i, text in enumerate(texts): # determine if a line needs highlighting, based on click location
+                        if text.contains(event)[0]:
+                            highlights[i] = True
 
-            try:
-                self.clicked_hline.remove()
-    
-            except (AttributeError, ValueError):
-                pass
+                    if highlights:  # there is a line that needs to be highlighted, highlight it, and dim the rest
+                        for i, text in enumerate(texts):
+                            if i in highlights:
+                                self.lines[i].set_alpha(1)
+                                self.lines[i].set_linewidth(1.5)
+                                text.set_color('yellow')
+                            else:
+                                self.lines[i].set_alpha(.3)
+                                self.lines[i].set_linewidth(1)
+                                text.set_color('white')
+                    else:   # if there are no valid highlights(aka you clicked in the legend, but not on a line text, then return all lines to normal)
+                        for i, text in enumerate(texts):       
+                            self.lines[i].set_alpha(1)
+                            self.lines[i].set_linewidth(1)
+                            text.set_color('white')
 
-            try:
-                self.scat_plt1.remove()
-    
-            except (AttributeError, ValueError):
-                pass
+                    self.canvas1.draw_idle()
 
-            lines = self.ax1.get_lines()
-            selected_xaxis = self.x_axis.get()
+    def crosshair_click(self, event):
+        # on click, if crosshair enabled - update summary values to the value of each visible graphs at the nearest x cordinate(snaps to nearest real datapoint)
+        raw_x_value = event.xdata
 
-            n = 0
-            scat_x_vals = []
-            scat_y_vals = []
+        try:
+            self.clicked_hline.remove()
 
-            for c in self.filtered_df:
-                if c != selected_xaxis:
-                    if c != 'cycle':
-                        if self.parameter_selections[c].get():
+        except (AttributeError, ValueError):
+            pass
+
+        try:
+            self.scat_plt1.remove()
+
+        except (AttributeError, ValueError):
+            pass
+
+        lines = self.lines
+        selected_xaxis = self.x_axis.get()
+
+        n = 0
+        scat_x_vals = []
+        scat_y_vals = []
+
+        for c in self.filtered_df:
+            if c != selected_xaxis:
+                if c != 'cycle':
+                    if self.parameter_selections[c].get():
+
+                        if self.cycle_selection.get() == 'All':
+                            for name in self.current_y_values:
+                                split_name = name.split('-')
+                                if c == split_name[0]:
+                                    line = lines[n]
+                                    x_data, y_data = line.get_data()
+                                    n += 1
+                                    minvalue_index = np.abs(x_data - raw_x_value).argmin()             #gets the closest x_data point for the clicked x position for each line indiviually
+
+                                    set_values = self.filtered_df.loc[self.filtered_df['cycle'] == int(split_name[1]), [f'{c}', selected_xaxis]]
+                                    single_value = set_values.loc[set_values[selected_xaxis] == x_data[minvalue_index], c]
+                                    self.current_y_values[name].set(round(single_value.iloc[0], 3))
+                                    scat_x_vals.append(x_data[minvalue_index])
+                                    scat_y_vals.append(y_data[minvalue_index])
+
+                        else: # is selected, but "All" cyles isn't
                             line = lines[n]
                             x_data, y_data = line.get_data()
                             n += 1
                             minvalue_index = np.abs(x_data - raw_x_value).argmin()             #gets the closest x_data point for the clicked x position for each line indiviually
+                            self.current_y_values[c].set(round(self.filtered_df.loc[self.filtered_df[selected_xaxis] == x_data[minvalue_index], f'{c}'].values[0], 3))        # we still get summary frame data directly from the dataframe, so normalization has no effect
 
-                            if self.cycle_selection.get() == 'All':
-                                for name in self.current_y_values:
-                                    split_name = name.split('-')
-                                    if c == split_name[0]:
-                                        print(split_name[0], split_name[1], x_data[minvalue_index])
-                                        set_values = self.filtered_df.loc[self.filtered_df['cycle'] == int(split_name[1]), [f'{c}', selected_xaxis]]
-                                        print(set_values)
-                                        single_value = set_values.loc[set_values[selected_xaxis] == x_data[minvalue_index]]
-                                        print(single_value)
-                                        self.current_y_values[name].set(round(single_value[split_name[0]].values[0], 3))
-                                        scat_x_vals.append(x_data[minvalue_index])
-                                        scat_y_vals.append(y_data[minvalue_index])
+                            scat_x_vals.append(x_data[minvalue_index])
+                            scat_y_vals.append(y_data[minvalue_index])
 
-                            else: # is selected, but "All" cyles isn't
-                                self.current_y_values[name].set(round(self.filtered_df.loc[self.filtered_df[selected_xaxis] == x_data[minvalue_index], f'{c}'].values[0], 3))        # we still get summary frame data directly from the dataframe, so normalization has no effect
+            else: # it is x axis
+                minvalue_index = np.abs(self.filtered_df[selected_xaxis] - raw_x_value).argmin()
+                self.current_y_values[selected_xaxis].set(round(self.filtered_df[selected_xaxis].iloc[minvalue_index], 3))
 
-                                scat_x_vals.append(x_data[minvalue_index])
-                                scat_y_vals.append(y_data[minvalue_index])
+        self.clicked_hline = self.ax1.axvline(x = raw_x_value, ls='--', color='yellow')
+        self.scat_plt1 = self.ax1.scatter(scat_x_vals, scat_y_vals, c='yellow', marker='x', s=60)
 
-                else: # it is x axis
-                    minvalue_index = np.abs(self.filtered_df[selected_xaxis] - raw_x_value).argmin()
-                    self.current_y_values[selected_xaxis].set(round(self.filtered_df[selected_xaxis].iloc[minvalue_index], 3))
-
-            self.clicked_hline = self.ax1.axvline(x = raw_x_value, ls='--', color='yellow')
-            self.scat_plt1 = self.ax1.scatter(scat_x_vals, scat_y_vals, c='yellow', marker='x', s=60)
-
-            self.canvas1.draw()
+        self.canvas1.draw_idle()
 
 
     def key_event(self, event):
@@ -592,18 +630,21 @@ class APP(ctk.CTk):
             offset_df = self.filtered_df.subtract(self.filtered_df.min())
 
             self.normalized_df = offset_df.apply(lambda x: x.div(x.max()) if x.max() != 0 else x, axis=0)
-            self.normalized_df[self.x_axis.get()] = self.filtered_df[self.x_axis.get()] # reset the xaxis column as we don't want it normalized
+
+            for c in self.normalized_df.columns:
+                if c in ['cycle', 'mac', 'channel', self.x_axis.get()]: #resets any values we don't want normalized, which are filtering columns and the selected x axis
+                    self.normalized_df[c] = self.filtered_df[c]
 
         self.update_graph()
 
 
-    def fullsys_import_select(self):
-        if self.fullsys_import_state.get():
+    def fridgeplexor_import_select(self):
+        if self.fridgeplexor_import_state.get():
             self.mixed_import_state.set(0)
 
     def mixed_import_select(self):
         if self.mixed_import_state.get():
-            self.fullsys_import_state.set(0)
+            self.fridgeplexor_import_state.set(0)
 
     def export_file(self):
         export_filename = Path(tk.filedialog.asksaveasfilename(defaultextension='.csv', title='Save output data as: ', filetypes = [('CSV files', '*csv')]))
